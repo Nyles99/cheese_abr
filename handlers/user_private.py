@@ -2,6 +2,7 @@ from aiogram import F, types, Router
 from aiogram.filters import CommandStart, Command
 
 user_private_router = Router()
+user_private_router.message.filter()
 
 
 @user_private_router.message(CommandStart())
@@ -27,8 +28,3 @@ async def menu_cmd(message: types.Message):
 @user_private_router.message(Command('shipping'))
 async def menu_cmd(message: types.Message):
     await message.answer("Варианты доставки")
-    
-    
-@user_private_router.message(F.text)
-async def menu_cmd(message: types.Message):
-    await message.answer("Это магический фильтр")
