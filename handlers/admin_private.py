@@ -115,16 +115,16 @@ async def add_product(message: types.Message, state: FSMContext):
     await state.set_state(AddProduct.name)
 
 
-#Хендлер отмены и сброса состояния должен быть всегда именно хдесь,
-#после того как только встали в состояние номер 1 (элементарная очередность фильтров)
-@admin_router.message(StateFilter('*'), Command("отмена"))
-@admin_router.message(StateFilter('*'), F.text.casefold() == "отмена")
+# Хендлер отмены и сброса состояния должен быть всегда именно хдесь,
+# после того как только встали в состояние номер 1 (элементарная очередность фильтров)
+@admin_router.message(StateFilter("*"), Command("отмена"))
+@admin_router.message(StateFilter("*"), F.text.casefold() == "отмена")
 async def cancel_handler(message: types.Message, state: FSMContext) -> None:
-
     current_state = await state.get_state()
     if current_state is None:
         return
-
+    if AddProduct.product_for_change:
+        AddProduct.product_for_change = None
     await state.clear()
     await message.answer("Действия отменены", reply_markup=ADMIN_KB)
 
