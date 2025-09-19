@@ -76,7 +76,7 @@ async def delete_product_callback(callback: types.CallbackQuery, session: AsyncS
     await callback.message.answer("Товар удален!")
 
 
-################# Микро FSM для загрузки/изменения баннеров ############################
+################# Микро FSM для загрузки/изменения баннеров  ############################
 
 class AddBanner(StatesGroup):
     image = State()
