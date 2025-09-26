@@ -1,6 +1,17 @@
-from aiogram.types import InputMediaPhoto
+import asyncio
+import datetime
+import types
+import os
+from aiogram.types import InputMediaPhoto, CallbackQuery, Message
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+from aiogram import Bot
+from aiogram.client.bot import DefaultBotProperties
+from aiogram.enums import ParseMode
+
+from dotenv import find_dotenv, load_dotenv
+
+load_dotenv(find_dotenv())
 
 from database.orm_query import (
     orm_add_to_cart,
@@ -10,6 +21,7 @@ from database.orm_query import (
     orm_get_products,
     orm_get_user_carts,
     orm_reduce_product_in_cart,
+    orm_clear_cart,
 )
 from kbds.inline import (
     get_products_btns,
@@ -19,12 +31,62 @@ from kbds.inline import (
 )
 from database.orm_query import Paginator
 
+bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+
+
 async def main_menu(session, level, menu_name):
+    
     banner = await orm_get_banner(session, menu_name)
     image = InputMediaPhoto(media=banner.image, caption=banner.description)
 
     kbds = get_user_main_btns(level=level)
 
+    return image, kbds
+
+
+async def get_user_info_string(bot: Bot, user_id: int) -> str:
+    """
+    Возвращает строку с полной информацией о пользователе
+    """
+    try:
+        user = await bot.get_chat(user_id)
+        
+        full_name = user.full_name or "Не указано"
+        username_1 = f"@{user.username}" if user.username else "Не указан"
+        
+        return f"{full_name} ({username_1})"
+        
+    except Exception as e:
+        print(f"Ошибка получения информации о пользователе {user_id}: {e}")
+        return "Пользователь (Не указан)"
+
+
+async def main_cart_menu(session, level, menu_name, user_id):
+    bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    cartss = await orm_get_user_carts(session, user_id)
+    #print (cartss)
+    user_name = await get_user_info_string(bot, user_id)
+    spisok =''
+     
+    if cartss:
+        for cart_item in cartss:
+            print(cart_item.product.name)
+            spisok = spisok + f'{cart_item.product.name} - {cart_item.quantity} штук. \n'
+    try:
+        await bot.send_message(
+            chat_id=992900169,
+            text=f"🚀 *НОВЫЙ ЗАКАЗ!*\n\n 👤 Покупатель:* {user_name or 'Не указано'}\n 🆔 ID:* `{user_id}`\n \
+            📅 Время:* {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n 🛒 Состав заказа:*\n" + spisok,
+            parse_mode="Markdown"  # Для красивого форматирования
+        )
+    except Exception as e:
+        print(f"Ошибка отправки менеджеру: {e}")
+    await orm_clear_cart(session, user_id)
+    banner = await orm_get_banner(session, menu_name)
+    image = InputMediaPhoto(media=banner.image, caption="✅ Ваш заказ принят! Ожидайте подтверждения. Продолжим покупки?")
+    level = 0
+    kbds = get_user_main_btns(level=level)
+    
     return image, kbds
 
 
@@ -86,7 +148,8 @@ async def carts(session, level, menu_name, page, user_id, product_id):
             page -= 1
     elif menu_name == "increment":
         await orm_add_to_cart(session, user_id, product_id)
-
+    
+    
     carts = await orm_get_user_carts(session, user_id)
 
     if not carts:
@@ -135,6 +198,9 @@ async def get_menu_content(
     page: Optional[int] = None,
     product_id: Optional[int] = None,
     user_id: Optional[int] = None,
+    callback: Optional[CallbackQuery] = None,
+    message: Optional[Message] = None,
+    
 ):
     if level == 0:
         return await main_menu(session, level, menu_name)
@@ -144,3 +210,6 @@ async def get_menu_content(
         return await products(session, level, category, page)
     elif level == 3:
         return await carts(session, level, menu_name, page, user_id, product_id)
+    elif level == 4:
+        #print ('Здесь')
+        return await main_cart_menu(session, level, menu_name, user_id)
