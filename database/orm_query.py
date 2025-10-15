@@ -208,3 +208,30 @@ async def orm_reduce_product_in_cart(session: AsyncSession, user_id: int, produc
         await orm_delete_from_cart(session, user_id, product_id)
         await session.commit()
         return False
+    
+
+async def orm_get_user(session: AsyncSession, user_id: int):
+    """Получить пользователя по ID"""
+    query = select(User).where(User.user_id == user_id)
+    result = await session.execute(query)
+    return result.scalar_one_or_none()
+
+async def orm_save_user_phone(session: AsyncSession, user_id: int, phone: str):
+    """Сохранить или обновить номер телефона пользователя"""
+    user = await orm_get_user(session, user_id)
+    
+    if user:
+        # Обновляем существующего пользователя
+        user.phone = phone
+    else:
+        # Создаем нового пользователя
+        user = User(
+            user_id=user_id,
+            first_name="",
+            last_name="", 
+            phone=phone
+        )
+        session.add(user)
+    
+    await session.commit()
+    return user

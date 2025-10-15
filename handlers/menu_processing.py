@@ -63,24 +63,38 @@ async def get_user_info_string(bot: Bot, user_id: int) -> str:
 
 async def main_cart_menu(session, level, menu_name, user_id):
     bot = Bot(token=os.getenv('TOKEN'), default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    cartss = await orm_get_user_carts(session, user_id)
-    #print (cartss)
+    
+    # Получаем информацию о пользователе и его телефон
+    from database.orm_query import orm_get_user
+    user = await orm_get_user(session, user_id)
     user_name = await get_user_info_string(bot, user_id)
-    spisok =''
+    
+    # Получаем корзину
+    cartss = await orm_get_user_carts(session, user_id)
+    spisok = ''
      
     if cartss:
         for cart_item in cartss:
             print(cart_item.product.name)
             spisok = spisok + f'{cart_item.product.name} - {cart_item.quantity} штук. \n'
+    
+    # Формируем сообщение для менеджера с телефоном
+    phone_info = user.phone if user and user.phone else "❌ Не указан"
+    
     try:
         await bot.send_message(
             chat_id=992900169,
-            text=f"🚀 *НОВЫЙ ЗАКАЗ!*\n\n 👤 Покупатель:* {user_name or 'Не указано'}\n 🆔 ID:* `{user_id}`\n \
-            📅 Время:* {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n 🛒 Состав заказа:*\n" + spisok,
-            parse_mode="Markdown"  # Для красивого форматирования
+            text=f"🚀 *НОВЫЙ ЗАКАЗ!*\n\n"
+                 f"👤 Покупатель: {user_name}\n"
+                 f"📞 Телефон: {phone_info}\n"
+                 f"🆔 ID: `{user_id}`\n"
+                 f"📅 Время: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                 f"🛒 Состав заказа:\n{spisok}",
+            parse_mode="Markdown"
         )
     except Exception as e:
         print(f"Ошибка отправки менеджеру: {e}")
+    
     await orm_clear_cart(session, user_id)
     banner = await orm_get_banner(session, menu_name)
     image = InputMediaPhoto(media=banner.image, caption="✅ Ваш заказ принят! Ожидайте подтверждения. Продолжим покупки?")
@@ -169,13 +183,13 @@ async def carts(session, level, menu_name, page, user_id, product_id):
         paginator = Paginator(carts, page=page)
 
         cart = paginator.get_page()[0]
-        cart_price = int(cart.product.price[: cart.product.price.find(' р.')]) * cart.quantity
-        total_price = sum(cart.quantity * int(cart.product.price[: cart.product.price.find(' р.')]) for cart in carts)
+        cart_price = int(cart.product.price[: cart.product.price.find('₽')]) * cart.quantity
+        total_price = sum(cart.quantity * int(cart.product.price[: cart.product.price.find('₽')]) for cart in carts)
         
         image = InputMediaPhoto(
             media=cart.product.image,
-            caption=f"<strong>{cart.product.name}</strong>\n{cart.product.price} x {cart.quantity} = {cart_price}р. \
-                    \nТовар {paginator.page} из {paginator.pages} в корзине.\nОбщая стоимость товаров в корзине {total_price} р.",
+            caption=f"<strong>{cart.product.name}</strong>\n{cart.product.price} x {cart.quantity} = {cart_price}₽ \
+                    \nТовар {paginator.page} из {paginator.pages} в корзине.\nОбщая стоимость товаров в корзине {total_price}₽",
         )
 
         pagination_btns = pages(paginator)
@@ -210,4 +224,4 @@ async def get_menu_content(
         return await carts(session, level, menu_name, page, user_id, product_id)
     elif level == 4:
         #print ('Здесь')
-        return await main_cart_menu(session, level, menu_name, user_id)
+        return await main_cart_menu(session, level, 'main', user_id)
