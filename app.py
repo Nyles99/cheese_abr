@@ -37,7 +37,7 @@ dp.include_router(admin_router)
 
 async def on_startup(bot):
     
-    #await drop_db()
+    await drop_db()
 
     await create_db()
 
@@ -53,7 +53,7 @@ async def main():
     dp.update.middleware(DataBaseSession(session_pool=session_maker))
     
     await bot.delete_webhook(drop_pending_updates=True)
-    #await bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
+    await bot.delete_my_commands(scope=types.BotCommandScopeAllPrivateChats())
     #await bot.set_my_commands(commands=private, scope=types.BotCommandScopeAllPrivateChats())
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 

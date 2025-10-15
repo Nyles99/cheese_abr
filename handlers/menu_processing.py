@@ -169,13 +169,13 @@ async def carts(session, level, menu_name, page, user_id, product_id):
         paginator = Paginator(carts, page=page)
 
         cart = paginator.get_page()[0]
-
-        #cart_price = round(cart.quantity * cart.product.price, 2)
+        cart_price = int(cart.product.price[: cart.product.price.find(' р.')]) * cart.quantity
+        total_price = sum(cart.quantity * int(cart.product.price[: cart.product.price.find(' р.')]) for cart in carts)
         
         image = InputMediaPhoto(
             media=cart.product.image,
-            caption=f"<strong>{cart.product.name}</strong>\n{cart.product.price} x {cart.quantity} \
-                    \nТовар {paginator.page} из {paginator.pages} в корзине.",
+            caption=f"<strong>{cart.product.name}</strong>\n{cart.product.price} x {cart.quantity} = {cart_price}р. \
+                    \nТовар {paginator.page} из {paginator.pages} в корзине.\nОбщая стоимость товаров в корзине {total_price} р.",
         )
 
         pagination_btns = pages(paginator)
@@ -198,8 +198,6 @@ async def get_menu_content(
     page: Optional[int] = None,
     product_id: Optional[int] = None,
     user_id: Optional[int] = None,
-    callback: Optional[CallbackQuery] = None,
-    message: Optional[Message] = None,
     
 ):
     if level == 0:
