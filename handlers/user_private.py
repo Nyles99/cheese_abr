@@ -34,6 +34,15 @@ async def start_cmd(message: types.Message, session: AsyncSession):
 
 async def add_to_cart(callback: types.CallbackQuery, callback_data: MenuCallBack, session: AsyncSession):
     user = callback.from_user
+    
+    # Проверяем доступность товара
+    from database.orm_query import orm_get_product
+    product = await orm_get_product(session, callback_data.product_id)
+    
+    if not product or not product.is_active:
+        await callback.answer("❌ Данного товара нет в наличии", show_alert=True)
+        return
+    
     await orm_add_user(
         session,
         user_id=user.id,

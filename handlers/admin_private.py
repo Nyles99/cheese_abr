@@ -7,12 +7,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.orm_query import (
     orm_change_banner_image,
+    orm_get_all_products,
     orm_get_categories,
     orm_add_product,
     orm_delete_product,
     orm_get_info_pages,
     orm_get_product,
     orm_get_products,
+    orm_toggle_product_availability,
     orm_update_product,
 )
 
@@ -50,21 +52,48 @@ async def admin_features(message: types.Message, session: AsyncSession):
 @admin_router.callback_query(F.data.startswith('category_'))
 async def starring_at_product(callback: types.CallbackQuery, session: AsyncSession):
     category_id = callback.data.split('_')[-1]
-    for product in await orm_get_products(session, int(category_id)):
+    for product in await orm_get_all_products(session, int(category_id)):  # Используем новую функцию
+        status = "✅ В наличии" if product.is_active else "❌ Нет в наличии"
         await callback.message.answer_photo(
             product.image,
-            caption=f"<strong>{product.name}\
-                    </strong>\n{product.description}\nСтоимость: {product.price}",
+            caption=f"<strong>{product.name}</strong>\n"
+                    f"{product.description}\n"
+                    f"Стоимость: {product.price}\n"
+                    f"<strong>{status}</strong>",
             reply_markup=get_callback_btns(
                 btns={
                     "Удалить": f"delete_{product.id}",
                     "Изменить": f"change_{product.id}",
+                    "Блокировать" if product.is_active else "Разблокировать": f"toggle_{product.id}",
                 },
-                sizes=(2,)
+                sizes=(2, 1)
             ),
         )
     await callback.answer()
     await callback.message.answer("ОК, вот список товаров ⏫")
+
+
+@admin_router.callback_query(F.data.startswith("toggle_"))
+async def toggle_product_callback(callback: types.CallbackQuery, session: AsyncSession):
+    product_id = callback.data.split("_")[-1]
+    new_status = await orm_toggle_product_availability(session, int(product_id))
+    
+    if new_status is not None:
+        status_text = "разблокирован" if new_status else "заблокирован"
+        await callback.answer(f"Товар {status_text}")
+        # Обновляем сообщение
+        await callback.message.edit_reply_markup(
+            reply_markup=get_callback_btns(
+                btns={
+                    "Удалить": f"delete_{product_id}",
+                    "Изменить": f"change_{product_id}",
+                    "Блокировать" if new_status else "Разблокировать": f"toggle_{product_id}",
+                },
+                sizes=(2, 1)
+            )
+        )
+    else:
+        await callback.answer("Ошибка: товар не найден")
 
 
 @admin_router.callback_query(F.data.startswith("delete_"))

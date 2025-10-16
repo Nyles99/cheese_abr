@@ -216,6 +216,7 @@ async def orm_get_user(session: AsyncSession, user_id: int):
     result = await session.execute(query)
     return result.scalar_one_or_none()
 
+
 async def orm_save_user_phone(session: AsyncSession, user_id: int, phone: str):
     """Сохранить или обновить номер телефона пользователя"""
     user = await orm_get_user(session, user_id)
@@ -235,3 +236,28 @@ async def orm_save_user_phone(session: AsyncSession, user_id: int, phone: str):
     
     await session.commit()
     return user
+
+
+async def orm_toggle_product_availability(session: AsyncSession, product_id: int):
+    """Блокировка/разблокировка товара"""
+    product = await orm_get_product(session, product_id)
+    if product:
+        product.is_active = not product.is_active
+        await session.commit()
+        return product.is_active
+    return None
+
+async def orm_get_active_products(session: AsyncSession, category_id):
+    """Получить только активные товары"""
+    query = select(Product).where(
+        Product.category_id == int(category_id),
+        Product.is_active == True  # Только активные товары
+    )
+    result = await session.execute(query)
+    return result.scalars().all()
+
+async def orm_get_all_products(session: AsyncSession, category_id):
+    """Получить все товары (для админки)"""
+    query = select(Product).where(Product.category_id == int(category_id))
+    result = await session.execute(query)
+    return result.scalars().all()

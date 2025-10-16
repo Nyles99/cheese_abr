@@ -16,6 +16,7 @@ load_dotenv(find_dotenv())
 from database.orm_query import (
     orm_add_to_cart,
     orm_delete_from_cart,
+    orm_get_active_products,
     orm_get_banner,
     orm_get_categories,
     orm_get_products,
@@ -126,16 +127,21 @@ def pages(paginator: Paginator):
 
 
 async def products(session, level, category, page):
+    # Используем старую функцию, которая возвращает ВСЕ товары
     products = await orm_get_products(session, category_id=category)
 
     paginator = Paginator(products, page=page)
     product = paginator.get_page()[0]
 
+    # Формируем подпись в зависимости от доступности товара
+    if product.is_active:
+        caption = f"<strong>{product.name}</strong>\n{product.description}\nСтоимость: {product.price}\n<strong>Товар {paginator.page} из {paginator.pages}</strong>"
+    else:
+        caption = f"<strong>{product.name}</strong>\n{product.description}\n<strong>❌ Нет в наличии</strong>\n<strong>Товар {paginator.page} из {paginator.pages}</strong>"
+
     image = InputMediaPhoto(
         media=product.image,
-        caption=f"<strong>{product.name}\
-                </strong>\n{product.description}\nСтоимость: {product.price}\n\
-                <strong>Товар {paginator.page} из {paginator.pages}</strong>",
+        caption=caption,
     )
 
     pagination_btns = pages(paginator)
