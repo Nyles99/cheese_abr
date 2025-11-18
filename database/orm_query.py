@@ -261,3 +261,16 @@ async def orm_get_all_products(session: AsyncSession, category_id):
     query = select(Product).where(Product.category_id == int(category_id))
     result = await session.execute(query)
     return result.scalars().all()
+
+async def orm_get_banner_safe(session: AsyncSession, page: str):
+    """Безопасное получение баннера с дефолтными значениями"""
+    banner = await orm_get_banner(session, page)
+    if not banner:
+        # Создаем дефолтный баннер
+        from database.models import Banner
+        banner = Banner(
+            name=page,
+            image="https://via.placeholder.com/400x200/0088cc/ffffff?text=Магазин",
+            description=f"Описание для {page}"
+        )
+    return banner

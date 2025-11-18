@@ -130,8 +130,22 @@ async def products(session, level, category, page):
     # Используем старую функцию, которая возвращает ВСЕ товары
     products = await orm_get_products(session, category_id=category)
 
+    # Проверяем, есть ли товары в категории
+    if not products:
+        # Если товаров нет, возвращаем специальный флаг
+        return "empty_category", None
+
     paginator = Paginator(products, page=page)
-    product = paginator.get_page()[0]
+    
+    # Проверяем, что страница не пустая
+    current_page = paginator.get_page()
+    if not current_page:
+        # Если страница пустая, возвращаемся на первую страницу
+        page = 1
+        paginator = Paginator(products, page=page)
+        current_page = paginator.get_page()
+    
+    product = current_page[0]
 
     # Формируем подпись в зависимости от доступности товара
     if product.is_active:
@@ -229,5 +243,4 @@ async def get_menu_content(
     elif level == 3:
         return await carts(session, level, menu_name, page, user_id, product_id)
     elif level == 4:
-        #print ('Здесь')
         return await main_cart_menu(session, level, 'main', user_id)

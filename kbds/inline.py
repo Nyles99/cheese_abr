@@ -65,10 +65,10 @@ def get_products_btns(
     keyboard.add(InlineKeyboardButton(text='Корзина 🛒',
                 callback_data=MenuCallBack(level=3, menu_name='cart').pack()))
     
-    # Кнопка "Купить" всегда показывается, но при нажатии на заблокированный товар
-    # будет всплывать сообщение "Товара нет в наличии"
-    keyboard.add(InlineKeyboardButton(text='Купить 💵',
-                callback_data=MenuCallBack(level=level, menu_name='add_to_cart', product_id=product_id).pack()))
+    # Кнопка "Купить" показывается только если передан product_id и он не None
+    if product_id is not None:
+        keyboard.add(InlineKeyboardButton(text='Купить 💵',
+                    callback_data=MenuCallBack(level=level, menu_name='add_to_cart', product_id=product_id).pack()))
 
     keyboard.adjust(*sizes)
 
@@ -90,7 +90,11 @@ def get_products_btns(
                         category=category,
                         page=page - 1).pack()))
 
-    return keyboard.row(*row).as_markup()
+    # Добавляем пагинацию только если есть кнопки
+    if row:
+        keyboard.row(*row)
+
+    return keyboard.as_markup()
 
 
 def get_user_cart(

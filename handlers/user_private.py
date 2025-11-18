@@ -142,5 +142,18 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
         user_id=callback.from_user.id,
     )
 
+    # Обработка случая когда категория пустая
+    if media == "empty_category":
+        await callback.answer("В этой категории отсутствует товар на данный момент, возможно, все уже съели) 🧀", show_alert=False)
+        return
+
+    # Обработка случая когда нет медиа (для уровня 4 - оформление заказа)
+    if media is None and callback_data.level == 4:
+        await callback.message.answer(
+            "✅ Ваш заказ принят! Ожидайте подтверждения. Продолжим покупки?",
+            reply_markup=reply_markup
+        )
+        return
+
     await callback.message.edit_media(media=media, reply_markup=reply_markup)
     await callback.answer()
