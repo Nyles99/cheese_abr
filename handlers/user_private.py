@@ -62,7 +62,7 @@ async def process_order_with_phone_check(callback: types.CallbackQuery, session:
         # Телефон есть - переходим к оформлению заказа
         media, reply_markup = await get_menu_content(
             session,
-            level=4,  # Уровень для оформления заказа
+            level=5,  # Уровень для оформления заказа
             menu_name="order",
             user_id=user_id,
         )
@@ -112,7 +112,7 @@ async def get_user_phone(message: types.Message, state: FSMContext, session: Asy
         # Переходим к оформлению заказа
         media, reply_markup = await get_menu_content(
             session,
-            level=4,  # Уровень для оформления заказа
+            level=5,  # Уровень для оформления заказа
             menu_name="order", 
             user_id=user_id,
         )
@@ -132,13 +132,32 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
         await process_order_with_phone_check(callback, session, state)
         return
 
+    # Определяем правильный уровень и параметры для навигации
+    target_level = callback_data.level
+    target_menu_name = callback_data.menu_name
+    target_category = callback_data.category
+    target_page = callback_data.page
+    target_product_id = callback_data.product_id
+
+    # Специальная обработка для перехода из списка товаров к конкретному товару
+    if callback_data.level == 2 and callback_data.product_id:
+        # Это клик на конкретный товар из списка
+        target_level = 3  # Переходим на уровень детального просмотра
+        target_menu_name = "product_detail"
+    
+    # Специальная обработка для перехода из категории в список товаров
+    elif callback_data.level == 1 and callback_data.menu_name != "catalog":
+        # Это выбор категории из каталога
+        target_level = 2  # Переходим на уровень списка товаров
+        target_menu_name = "products_list"
+
     media, reply_markup = await get_menu_content(
         session,
-        level=callback_data.level,
-        menu_name=callback_data.menu_name,
-        category=callback_data.category,
-        page=callback_data.page,
-        product_id=callback_data.product_id,
+        level=target_level,
+        menu_name=target_menu_name,
+        category=target_category,
+        page=target_page,
+        product_id=target_product_id,
         user_id=callback.from_user.id,
     )
 
@@ -147,8 +166,13 @@ async def user_menu(callback: types.CallbackQuery, callback_data: MenuCallBack, 
         await callback.answer("В этой категории отсутствует товар на данный момент, возможно, все уже съели) 🧀", show_alert=False)
         return
 
-    # Обработка случая когда нет медиа (для уровня 4 - оформление заказа)
-    if media is None and callback_data.level == 4:
+    # Обработка случая когда товар не найден
+    if media == "product_not_found":
+        await callback.answer("❌ Товар не найден", show_alert=True)
+        return
+
+    # Обработка случая когда нет медиа (для уровня 5 - оформление заказа)
+    if media is None and target_level == 5:
         await callback.message.answer(
             "✅ Ваш заказ принят! Ожидайте подтверждения. Продолжим покупки?",
             reply_markup=reply_markup

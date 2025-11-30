@@ -52,7 +52,7 @@ async def admin_features(message: types.Message, session: AsyncSession):
 @admin_router.callback_query(F.data.startswith('category_'))
 async def starring_at_product(callback: types.CallbackQuery, session: AsyncSession):
     category_id = callback.data.split('_')[-1]
-    for product in await orm_get_all_products(session, int(category_id)):  # Используем новую функцию
+    for product in await orm_get_all_products(session, int(category_id)):
         status = "✅ В наличии" if product.is_active else "❌ Нет в наличии"
         await callback.message.answer_photo(
             product.image,
@@ -276,17 +276,28 @@ async def add_description2(message: types.Message, state: FSMContext):
     await message.answer("Вы ввели не допустимые данные, введите текст описания товара")
 
 
-# Ловим callback выбора категории
+# Ловим callback выбора категории - ИСПРАВЛЕННЫЙ ОБРАБОТЧИК
 @admin_router.callback_query(AddProduct.category)
-async def category_choice(callback: types.CallbackQuery, state: FSMContext , session: AsyncSession):
-    if int(callback.data) in [category.id for category in await orm_get_categories(session)]:
-        await callback.answer()
-        await state.update_data(category=callback.data)
-        await callback.message.answer('Теперь введите цену товара.')
-        await state.set_state(AddProduct.price)
-    else:
-        await callback.message.answer('Выберите катеорию из кнопок.')
-        await callback.answer()
+async def category_choice(callback: types.CallbackQuery, state: FSMContext, session: AsyncSession):
+    # Проверяем, что это действительно ID категории (просто число), а не другой callback
+    try:
+        category_id = int(callback.data)
+        # Проверяем, что такая категория существует
+        categories = await orm_get_categories(session)
+        category_ids = [category.id for category in categories]
+        
+        if category_id in category_ids:
+            await callback.answer()
+            await state.update_data(category=callback.data)
+            await callback.message.answer('Теперь введите цену товара.')
+            await state.set_state(AddProduct.price)
+        else:
+            await callback.message.answer('Выберите категорию из кнопок.')
+            await callback.answer()
+    except ValueError:
+        # Если пришел не числовой ID (например, change_15), игнорируем
+        await callback.answer('Пожалуйста, выберите категорию из предложенных кнопок.')
+        return
 
 #Ловим любые некорректные действия, кроме нажатия на кнопку выбора категории
 @admin_router.message(AddProduct.category)
@@ -301,9 +312,10 @@ async def add_price(message: types.Message, state: FSMContext):
         await state.update_data(price=AddProduct.product_for_change.price)
     else:
         try:
-            message.text
+            # Простая проверка что введено число (можно улучшить)
+            float(message.text.replace('₽', '').strip())
         except ValueError:
-            await message.answer("Введите корректное значение цены")
+            await message.answer("Введите корректное значение цены (например: 1000 или 1500₽)")
             return
 
         await state.update_data(price=message.text)
@@ -325,7 +337,7 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
     elif message.photo:
         await state.update_data(image=message.photo[-1].file_id)
     else:
-        await message.answer("Отправьте фото пищи")
+        await message.answer("Отправьте фото товара")
         return
     data = await state.get_data()
     try:
@@ -348,4 +360,4 @@ async def add_image(message: types.Message, state: FSMContext, session: AsyncSes
 # Ловим все прочее некорректное поведение для этого состояния
 @admin_router.message(AddProduct.image)
 async def add_image2(message: types.Message, state: FSMContext):
-    await message.answer("Отправьте фото пищи")
+    await message.answer("Отправьте фото товара")

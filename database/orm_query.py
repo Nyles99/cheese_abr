@@ -267,7 +267,6 @@ async def orm_get_banner_safe(session: AsyncSession, page: str):
     banner = await orm_get_banner(session, page)
     if not banner:
         # Создаем дефолтный баннер
-        from database.models import Banner
         banner = Banner(
             name=page,
             image="https://via.placeholder.com/400x200/0088cc/ffffff?text=Магазин",

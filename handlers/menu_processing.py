@@ -23,12 +23,14 @@ from database.orm_query import (
     orm_get_user_carts,
     orm_reduce_product_in_cart,
     orm_clear_cart,
+    orm_get_product,
 )
 from kbds.inline import (
     get_products_btns,
     get_user_cart,
     get_user_catalog_btns,
     get_user_main_btns,
+    get_products_list_btns,
 )
 from database.orm_query import Paginator
 
@@ -93,6 +95,16 @@ async def main_cart_menu(session, level, menu_name, user_id):
                  f"🛒 Состав заказа:\n{spisok}",
             parse_mode="Markdown"
         )
+        await bot.send_message(
+            chat_id=5046653770,
+            text=f"🚀 *НОВЫЙ ЗАКАЗ!*\n\n"
+                 f"👤 Покупатель: {user_name}\n"
+                 f"📞 Телефон: {phone_info}\n"
+                 f"🆔 ID: `{user_id}`\n"
+                 f"📅 Время: {datetime.datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                 f"🛒 Состав заказа:\n{spisok}",
+            parse_mode="Markdown"
+        )
     except Exception as e:
         print(f"Ошибка отправки менеджеру: {e}")
     
@@ -115,6 +127,47 @@ async def catalog(session, level, menu_name):
     return image, kbds
 
 
+async def products_list(session, level, category, page):
+    """Отображает список товаров в категории в виде кнопок"""
+    # Используем функцию, которая возвращает ВСЕ товары
+    products = await orm_get_products(session, category_id=category)
+    
+    # Проверяем, есть ли товары в категории
+    if not products:
+        # Если товаров нет, возвращаем специальный флаг
+        return "empty_category", None
+    
+    # Получаем название категории
+    categories = await orm_get_categories(session)
+    category_name = next((cat.name for cat in categories if cat.id == int(category)), "Категория")
+    
+    banner = await orm_get_banner(session, "catalog")
+    
+    # Формируем описание с количеством товаров
+    active_products = [p for p in products if p.is_active]
+    inactive_products = [p for p in products if not p.is_active]
+    
+    caption = (
+        f"<strong>{category_name}</strong>\n\n"
+        f"📦 <b>Доступно товаров:</b> {len(active_products)}\n"
+    )
+    
+    if inactive_products:
+        caption += f"⏸️ <b>Недоступно:</b> {len(inactive_products)}"
+    
+    image = InputMediaPhoto(media=banner.image, caption=caption)
+    
+    # Создаем кнопки для каждого товара
+    kbds = get_products_list_btns(
+        level=level,
+        category=category,
+        products=products,
+        page=page
+    )
+
+    return image, kbds
+
+
 def pages(paginator: Paginator):
     btns = dict()
     if paginator.has_previous():
@@ -126,45 +179,45 @@ def pages(paginator: Paginator):
     return btns
 
 
-async def products(session, level, category, page):
-    # Используем старую функцию, которая возвращает ВСЕ товары
-    products = await orm_get_products(session, category_id=category)
-
-    # Проверяем, есть ли товары в категории
-    if not products:
-        # Если товаров нет, возвращаем специальный флаг
-        return "empty_category", None
-
-    paginator = Paginator(products, page=page)
-    
-    # Проверяем, что страница не пустая
-    current_page = paginator.get_page()
-    if not current_page:
-        # Если страница пустая, возвращаемся на первую страницу
-        page = 1
-        paginator = Paginator(products, page=page)
+async def products(session, level, category, page, product_id=None):
+    """Отображает конкретный товар"""
+    if product_id:
+        # Получаем конкретный товар по ID
+        product = await orm_get_product(session, product_id)
+        if not product:
+            return "product_not_found", None
+    else:
+        # Старая логика для обратной совместимости
+        products_list = await orm_get_products(session, category_id=category)
+        if not products_list:
+            return "empty_category", None
+            
+        paginator = Paginator(products_list, page=page)
         current_page = paginator.get_page()
-    
-    product = current_page[0]
+        if not current_page:
+            page = 1
+            paginator = Paginator(products_list, page=page)
+            current_page = paginator.get_page()
+        
+        product = current_page[0]
 
     # Формируем подпись в зависимости от доступности товара
     if product.is_active:
-        caption = f"<strong>{product.name}</strong>\n{product.description}\nСтоимость: {product.price}\n<strong>Товар {paginator.page} из {paginator.pages}</strong>"
+        caption = f"<strong>{product.name}</strong>\n\n{product.description}\n\n💵 <b>Стоимость:</b> {product.price}"
     else:
-        caption = f"<strong>{product.name}</strong>\n{product.description}\n<strong>❌ Нет в наличии</strong>\n<strong>Товар {paginator.page} из {paginator.pages}</strong>"
+        caption = f"<strong>{product.name}</strong>\n\n{product.description}\n\n<strong>❌ Товар временно недоступен</strong>"
 
     image = InputMediaPhoto(
         media=product.image,
         caption=caption,
     )
 
-    pagination_btns = pages(paginator)
-
+    # Для единичного товара пагинация не нужна
     kbds = get_products_btns(
         level=level,
         category=category,
         page=page,
-        pagination_btns=pagination_btns,
+        pagination_btns={},  # Пустой словарь для пагинации
         product_id=product.id,
     )
 
@@ -239,8 +292,12 @@ async def get_menu_content(
     elif level == 1:
         return await catalog(session, level, menu_name)
     elif level == 2:
-        return await products(session, level, category, page)
+        # Новый уровень - список товаров в категории
+        return await products_list(session, level, category, page)
     elif level == 3:
-        return await carts(session, level, menu_name, page, user_id, product_id)
+        # Уровень детального просмотра товара
+        return await products(session, level, category, page, product_id)
     elif level == 4:
+        return await carts(session, level, menu_name, page, user_id, product_id)
+    elif level == 5:
         return await main_cart_menu(session, level, 'main', user_id)
